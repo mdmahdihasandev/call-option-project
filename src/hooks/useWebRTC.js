@@ -181,10 +181,11 @@ export default function useWebRTC(roomId, username) {
     pc.ontrack = (event) => {
       const incomingStream = event.streams[0];
       const track = event.track;
-      if (!incomingStream || !track) return;
+      if (!track) return;
 
       if (track.kind === 'video') {
-        const isScreenTrack = (track.label || '').toLowerCase().includes('screen') || incomingStream.id.includes('screen') || incomingStream.id.includes('display');
+        const incomingStreamId = incomingStream?.id || '';
+        const isScreenTrack = (track.label || '').toLowerCase().includes('screen') || incomingStreamId.includes('screen') || incomingStreamId.includes('display');
         const targetStream = isScreenTrack
           ? (remoteScreenStreamsRef.current.get(remoteSocketId) || (() => {
               const s = new MediaStream();
@@ -203,6 +204,10 @@ export default function useWebRTC(roomId, username) {
         }
         remoteStream.addTrack(track);
       }
+      // Some mobile browsers initially deliver muted tracks. Refresh the UI
+      // when media begins flowing instead of waiting for a later track event.
+      track.onunmute = updateParticipants;
+      track.onended = updateParticipants;
       updateParticipants();
     };
 
@@ -216,8 +221,9 @@ export default function useWebRTC(roomId, username) {
       }
     };
 
-    pc.onnegotiationneeded = async () => {
-      if (!isOfferer || !socketRef.current) return;
+    const sendOffer = async () => {
+      if (!isOfferer || !socketRef.current?.connected || pc.signalingState !== 'stable' || pc._makingOffer) return;
+      pc._makingOffer = true;
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -228,8 +234,11 @@ export default function useWebRTC(roomId, username) {
         });
       } catch (err) {
         console.error('Error creating/sending offer:', err);
+      } finally {
+        pc._makingOffer = false;
       }
     };
+    pc.onnegotiationneeded = sendOffer;
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'closed') return;
@@ -253,6 +262,10 @@ export default function useWebRTC(roomId, username) {
           /* noop */
         }
       }
+
+      // `negotiationneeded` can be missed during initial setup on some mobile
+      // Chromium builds, so explicitly queue the first offer as a fallback.
+      queueMicrotask(sendOffer);
     }
 
     return pc;

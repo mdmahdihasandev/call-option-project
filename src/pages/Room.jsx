@@ -33,6 +33,10 @@ const VideoTile = React.memo(function VideoTile({ participant, micActive, camAct
     const video = videoRef.current;
     if (video.srcObject === stream) return;
     video.srcObject = stream;
+    // Explicit playback avoids mobile browsers leaving a newly-attached remote
+    // stream paused even though the video element has autoPlay enabled.
+    const playResult = video.play();
+    if (playResult?.catch) playResult.catch(() => {});
     return () => {
       try { video.srcObject = null; } catch { /* noop */ }
     };
