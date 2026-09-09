@@ -182,6 +182,21 @@ export default function useWebRTC(roomId, username) {
       const incomingStream = event.streams[0];
       const track = event.track;
       if (!track) return;
+<<<<<<< HEAD
+=======
+
+      // Browsers normally provide the complete remote MediaStream here. Keep
+      // that exact stream rather than assembling a second one track-by-track:
+      // tracks can arrive at different times on mobile, and the UI must retain
+      // the same stream object so its audio and video play together.
+      if (incomingStream) {
+        remoteStreamsRef.current.set(remoteSocketId, incomingStream);
+        track.onunmute = () => updateParticipants();
+        track.onended = () => updateParticipants();
+        updateParticipants();
+        return;
+      }
+>>>>>>> b22ae32 (Update call website)
 
       if (track.kind === 'video') {
         const incomingStreamId = incomingStream?.id || '';
@@ -263,8 +278,14 @@ export default function useWebRTC(roomId, username) {
         }
       }
 
+<<<<<<< HEAD
       // `negotiationneeded` can be missed during initial setup on some mobile
       // Chromium builds, so explicitly queue the first offer as a fallback.
+=======
+      // `negotiationneeded` is reliable in modern desktop browsers, but can be
+      // missed during initial setup on some mobile Chromium builds. Explicitly
+      // queue the first offer as a compatibility fallback.
+>>>>>>> b22ae32 (Update call website)
       queueMicrotask(sendOffer);
     }
 

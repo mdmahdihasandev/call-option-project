@@ -26,7 +26,9 @@ function formatTime(ts) {
 
 const VideoTile = React.memo(function VideoTile({ participant, micActive, camActive, isLocal, isScreen = false, screenOwnerName = '' }) {
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
   const stream = isScreen ? participant.screenStream : participant.stream;
+<<<<<<< HEAD
 
   useEffect(() => {
     if (!videoRef.current || !stream) return;
@@ -42,6 +44,8 @@ const VideoTile = React.memo(function VideoTile({ participant, micActive, camAct
     };
   }, [stream]);
 
+=======
+>>>>>>> b22ae32 (Update call website)
   const hasActiveVideo = stream
     ? stream.getVideoTracks().some((t) => t.enabled)
     : false;
@@ -57,6 +61,36 @@ const VideoTile = React.memo(function VideoTile({ participant, micActive, camAct
   const showMic = isLocal ? micActive : (participant.status?.micActive ?? hasActiveAudio);
   const speaking = showMic && !isScreen;
 
+  useEffect(() => {
+    if (!videoRef.current || !stream) return;
+    const video = videoRef.current;
+    if (video.srcObject === stream) return;
+    video.srcObject = stream;
+    // Explicit playback avoids mobile browsers leaving a newly-attached remote
+    // stream paused even though the video element has autoPlay enabled.
+    const playResult = video.play();
+    if (playResult?.catch) playResult.catch(() => {});
+    return () => {
+      try { video.srcObject = null; } catch { /* noop */ }
+    };
+  // `showCam` is important here. A remote audio track commonly arrives first;
+  // the video element is not mounted until its video track arrives later, while
+  // the MediaStream object itself stays the same.
+  }, [stream, showCam]);
+
+  useEffect(() => {
+    // Keep a dedicated audio player mounted for every remote participant. This
+    // means sound starts even before (or without) a remote video track.
+    if (isLocal || isScreen || !audioRef.current || !participant.stream) return;
+    const audio = audioRef.current;
+    if (audio.srcObject !== participant.stream) audio.srcObject = participant.stream;
+    const playResult = audio.play();
+    if (playResult?.catch) playResult.catch(() => {});
+    return () => {
+      try { audio.srcObject = null; } catch { /* noop */ }
+    };
+  }, [participant.stream, isLocal, isScreen]);
+
   const videoTrackLabel = useMemo(() => {
     return stream?.getVideoTracks?.()?.[0]?.label || '';
   }, [stream]);
@@ -69,6 +103,7 @@ const VideoTile = React.memo(function VideoTile({ participant, micActive, camAct
         ? 'border-2 border-indigo-500/50 shadow-[0_0_0_2px_rgba(99,102,241,0.08),0_0_40px_-12px_rgba(99,102,241,0.6)]'
         : 'border border-slate-800'
     } ${isScreen ? 'ring-1 ring-emerald-500/30' : ''}`}>
+      {!isLocal && !isScreen && <audio ref={audioRef} autoPlay playsInline />}
       {showCam && stream ? (
         <video
           ref={videoRef}
